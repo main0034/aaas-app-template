@@ -1,0 +1,69 @@
+name: ci
+
+# The app-side guardrail. Infrastructure is governed by schema validation;
+# application code is governed by this. Agent-written code must lint, pass
+# tests, and build before a human looks at it.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: ruff
+        run: ruff check app tests
+
+      # No database service on purpose - see tests/test_health.py.
+      - name: pytest
+        run: pytest -q
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build only, no push. Proves the image is buildable before merge.
+      - name: docker build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test the image
+        run: |
+          set -euo pipefail
+          docker run -d --name app -p 8000:8000 app:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health > /dev/null; then
+              echo "healthy after ${i}s"
+              curl -sS http://localhost:8000/health
+              docker rm -f app
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Container never became healthy. Logs:"
+          docker logs app
+          docker rm -f app
+          exit 1

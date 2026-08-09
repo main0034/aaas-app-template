@@ -1,0 +1,148 @@
+name: release
+
+# The image handoff - the most failure-prone link in the chain.
+#
+# On merge to main: build the image, tag it with the immutable git SHA, push
+# it, then open a PR against aaas-deployments bumping container_image.
+#
+# The deployment PR is the audit record. It is deliberately a PR and not a
+# direct push: merging it is the moment infrastructure changes, and it runs
+# through the same plan gate as everything else.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read deployment target
+        id: cfg
+        run: |
+          set -euo pipefail
+          path=$(grep -E '^deployment_path=' .aaas/deployment | cut -d= -f2- | tr -d '[:space:]')
+          if [ -z "$path" ]; then
+            echo "::error::.aaas/deployment does not define deployment_path"
+            exit 1
+          fi
+          echo "deployment_path=$path" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Immutable tag only. The deployments repo must record exactly what is
+      # running, which ':latest' cannot express.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.cfg.outputs.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Mint GitHub App token for the deployments repo
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AAAS_APP_ID }}
+          private-key: ${{ secrets.AAAS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: aaas-deployments
+
+      - name: Check out deployments repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/aaas-deployments
+          token: ${{ steps.app_token.outputs.token }}
+          path: deployments-repo
+
+      - name: Bump container_image
+        id: bump
+        working-directory: deployments-repo
+        env:
+          DEPLOYMENT_PATH: ${{ steps.cfg.outputs.deployment_path }}
+          NEW_IMAGE: ${{ steps.cfg.outputs.image }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tfvars="${DEPLOYMENT_PATH}/terraform.tfvars.json"
+
+          if [ ! -f "$tfvars" ]; then
+            echo "::error::${tfvars} does not exist. Create the deployment before releasing."
+            exit 1
+          fi
+
+          current=$(jq -r '.container_image' "$tfvars")
+          if [ "$current" = "$NEW_IMAGE" ]; then
+            echo "Image unchanged, nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Single-key edit. Anything else in the diff is a bug.
+          jq --arg img "$NEW_IMAGE" '.container_image = $img' "$tfvars" > "$tfvars.tmp"
+          mv "$tfvars.tmp" "$tfvars"
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "previous=$current" >> "$GITHUB_OUTPUT"
+
+      - name: Open deployment PR
+        if: steps.bump.outputs.changed == 'true'
+        working-directory: deployments-repo
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          DEPLOYMENT_PATH: ${{ steps.cfg.outputs.deployment_path }}
+          NEW_IMAGE: ${{ steps.cfg.outputs.image }}:${{ github.sha }}
+          PREVIOUS: ${{ steps.bump.outputs.previous }}
+          SOURCE_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          short="${SHA:0:7}"
+          name=$(basename "$DEPLOYMENT_PATH")
+          branch="deploy/${name}-${short}"
+
+          git config user.name  "aaas-bot"
+          git config user.email "aaas-bot@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$DEPLOYMENT_PATH/terraform.tfvars.json"
+          git commit -m "chore(${name}): deploy ${short}"
+          git push -u origin "$branch"
+
+          subject=$(git -C "$GITHUB_WORKSPACE" log -1 --pretty=%s "$SHA")
+
+          # Body written to a file rather than an inline heredoc: heredocs
+          # inside indented YAML block scalars are a reliable way to produce
+          # a very confusing shell error.
+          {
+            printf 'Automated image bump from [`%s@%s`](https://github.com/%s/commit/%s).\n\n' \
+              "$SOURCE_REPO" "$short" "$SOURCE_REPO" "$SHA"
+            printf '**Change:** %s\n\n' "$subject"
+            printf '| | |\n|---|---|\n'
+            printf '| Deployment | `%s` |\n' "$DEPLOYMENT_PATH"
+            printf '| Previous image | `%s` |\n' "$PREVIOUS"
+            printf '| New image | `%s` |\n\n' "$NEW_IMAGE"
+            printf 'Merging this PR deploys the new version. The plan comment below shows exactly what changes.\n'
+          } > /tmp/pr-body.md
+
+          gh pr create \
+            --title "chore(${name}): deploy ${short}" \
+            --body-file /tmp/pr-body.md

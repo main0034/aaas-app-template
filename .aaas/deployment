@@ -1,0 +1,8 @@
+# Which deployment directory in aaas-deployments this repo feeds.
+# Set once when the app repo is created. release.yml reads it to know where
+# to send the image-bump PR.
+#
+# Explicit rather than derived from the repo name: naming magic is fine right
+# up until one app has two deployments, and then it is very confusing.
+
+deployment_path=deployments/dev/demo
