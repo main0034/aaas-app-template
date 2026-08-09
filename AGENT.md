@@ -60,4 +60,4 @@ All four must pass. CI runs the same commands plus a container smoke test, so a 
 
 ## What happens after merge
 
-Merging to `main` builds an image tagged with the commit SHA, pushes it to GHCR, and opens a PR against `aaas-deployments` bumping `container_image`. That second PR is what actually deploys. You do not need to do anything to trigger it, and you must not edit the deployments repo by hand to work around it.
+Merging to `master` builds an image tagged with the commit SHA, pushes it to GHCR, and opens a PR against `aaas-deployments` bumping `container_image`. That second PR is what actually deploys. You do not need to do anything to trigger it, and you must not edit the deployments repo by hand to work around it.
