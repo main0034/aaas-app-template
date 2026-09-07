@@ -21,7 +21,8 @@ def test_health_returns_ok():
 
 
 def test_health_does_not_require_a_database():
-    # Passing at all proves the point: DATABASE_URL is unset in CI.
+    # Passing at all proves the point: PGHOST is unset in CI, so no database
+    # and no managed identity are available.
     assert client.get("/health").status_code == 200
 
 

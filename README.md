@@ -26,9 +26,13 @@ No database needed for tests. To run against one:
 
 ```bash
 docker run -d --name pg -e POSTGRES_PASSWORD=dev -p 5432:5432 postgres:16
-export DATABASE_URL="postgresql://postgres:dev@localhost:5432/postgres"
+export PGHOST=localhost PGDATABASE=postgres PGUSER=postgres PGPASSWORD=dev
 uvicorn app.main:app --reload
 ```
+
+`PGPASSWORD` is a local-development fallback only. In Azure there is no
+password: the container's managed identity fetches an Entra token at connect
+time. See `app/db.py`.
 
 ## Creating an app from this template
 

@@ -2,7 +2,7 @@ name: release
 
 # The image handoff - the most failure-prone link in the chain.
 #
-# On merge to main: build the image, tag it with the immutable git SHA, push
+# On merge to master: build the image, tag it with the immutable git SHA, push
 # it, then open a PR against aaas-deployments bumping container_image.
 #
 # The deployment PR is the audit record. It is deliberately a PR and not a
@@ -39,6 +39,37 @@ jobs:
           fi
           echo "deployment_path=$path" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      # Fail early and legibly. Without this, a missing or malformed secret
+      # surfaces 40 seconds later as a Node stack trace from inside the
+      # token action, which names the input but not the repository or the
+      # likely mistake.
+      - name: Preflight - check GitHub App credentials
+        env:
+          APP_ID: ${{ secrets.AAAS_APP_ID }}
+          APP_KEY: ${{ secrets.AAAS_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          fail=0
+
+          if [ -z "${APP_ID}" ]; then
+            echo "::error::AAAS_APP_ID is not set on ${GITHUB_REPOSITORY}."
+            fail=1
+          elif ! [[ "${APP_ID}" =~ ^[0-9]+$ ]]; then
+            echo "::error::AAAS_APP_ID on ${GITHUB_REPOSITORY} is not numeric. Use the App ID (e.g. 1234567) from the App's General page, not the Client ID (Iv23li...)."
+            fail=1
+          fi
+
+          if [ -z "${APP_KEY}" ]; then
+            echo "::error::AAAS_APP_PRIVATE_KEY is not set on ${GITHUB_REPOSITORY}. Set it from the .pem: gh secret set AAAS_APP_PRIVATE_KEY --repo ${GITHUB_REPOSITORY} < key.pem"
+            fail=1
+          elif ! grep -q "BEGIN RSA PRIVATE KEY\|BEGIN PRIVATE KEY" <<< "${APP_KEY}"; then
+            echo "::error::AAAS_APP_PRIVATE_KEY on ${GITHUB_REPOSITORY} does not look like a PEM. Pipe the .pem file in rather than pasting a path."
+            fail=1
+          fi
+
+          [ "$fail" -eq 0 ] || exit 1
+          echo "GitHub App credentials look well-formed."
 
       - uses: docker/setup-buildx-action@v3
 

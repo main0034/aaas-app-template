@@ -35,11 +35,15 @@ For anything beyond a handful of routes, split into `app/routes/` and `app/model
 
 ## Rules
 
-**Configuration comes from environment variables.** Read them at module level with a sensible default. `DATABASE_URL` and `PORT` are injected by the platform; do not redefine them.
+**Configuration comes from environment variables.** Read them at module level with a sensible default. `PGHOST`, `PGDATABASE`, `PGUSER`, `AZURE_CLIENT_ID` and `PORT` are injected by the platform; do not redefine them.
 
-**Never hardcode a credential**, and never read one from anywhere but the environment. The database connection string arrives as `DATABASE_URL` from Key Vault. There is no other secret store in this application.
+**There is no database password.** The container's managed identity requests a short-lived Entra token at connect time. `app/db.py` handles this — use `db.create_pool()` and do not write your own connection logic.
+
+This is not merely a nicety. Any stored credential ends up in Terraform state and must be readable by whatever identity runs `terraform plan`, which broke the deployment pipeline twice before the credential was removed altogether. **Do not introduce a `DATABASE_URL`, a Key Vault secret, or a Container App secret** — it will fail at plan time, not at runtime, and the error will not mention this file.
 
 **Database access is lazy.** Create the pool on first use, not at import or startup. Startup must not require the database — see the health contract above.
+
+**Locally**, set `PGHOST=localhost` and `PGPASSWORD=...` to fall back to ordinary password auth against a local Postgres. `PGPASSWORD` is for development only and is never set in the deployed environment.
 
 **Pin every dependency** to an exact version. An unpinned dependency means the image built from a given commit is not reproducible, which defeats the point of tagging images with the git SHA.
 

@@ -7,6 +7,9 @@ matters - the container must become healthy even when the database is
 unreachable, otherwise a DB problem looks like a deployment failure and you
 debug the wrong thing.
 
+Database authentication uses the container's managed identity; there is no
+password. See app/db.py.
+
 Agents extending this file: read AGENT.md first.
 """
 
@@ -20,7 +23,8 @@ import asyncpg
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
+from . import db
+
 APP_NAME = os.environ.get("APP_NAME", "app")
 
 _pool: asyncpg.Pool | None = None
@@ -33,10 +37,10 @@ async def get_pool() -> asyncpg.Pool:
     """
     global _pool
     if _pool is None:
-        if not DATABASE_URL:
-            raise HTTPException(status_code=503, detail="DATABASE_URL is not configured")
+        if not db.is_configured():
+            raise HTTPException(status_code=503, detail="database is not configured")
         try:
-            _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5, timeout=10)
+            _pool = await db.create_pool()
         except Exception as exc:  # noqa: BLE001 - surfaced to the caller as 503
             raise HTTPException(status_code=503, detail=f"database unavailable: {exc}") from exc
     return _pool
@@ -54,10 +58,12 @@ CREATE TABLE IF NOT EXISTS items (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Best-effort schema creation. A failure here must not stop the app from
-    # starting, or the health check never passes and the revision is rolled back.
-    if DATABASE_URL:
+    # starting, or the health check never passes and the revision is rolled
+    # back - which presents as a deployment failure rather than a database
+    # problem.
+    if db.is_configured():
         try:
-            pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=2, timeout=10)
+            pool = await db.create_pool(min_size=1, max_size=2)
             async with pool.acquire() as conn:
                 await conn.execute(SCHEMA)
             await pool.close()
@@ -89,13 +95,13 @@ async def health() -> dict[str, str]:
 @app.get("/ready")
 async def ready() -> dict[str, Any]:
     """Reports database connectivity. Not wired to the container probes."""
-    if not DATABASE_URL:
+    if not db.is_configured():
         return {"database": "unconfigured"}
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        return {"database": "ok"}
+        return {"database": "ok", "auth": "managed-identity" if not db.PGPASSWORD else "password"}
     except HTTPException as exc:
         return {"database": "unavailable", "detail": exc.detail}
 
