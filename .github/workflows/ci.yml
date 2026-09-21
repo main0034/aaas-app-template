@@ -1,8 +1,10 @@
 name: ci
 
 # The app-side guardrail. Infrastructure is governed by schema validation;
-# application code is governed by this. Agent-written code must lint, pass
-# tests, and build before a human looks at it.
+# application code is governed by this. Agent-written code must format, compile
+# with warnings as errors, pass tests, carry a migration for every model change,
+# and build into an image whose migrations apply to a real Postgres - before a
+# human looks at it.
 
 on:
   pull_request:
@@ -12,28 +14,56 @@ on:
 permissions:
   contents: read
 
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: pip
+          fetch-depth: 0 # the migration check diffs against the base branch
 
-      - run: pip install -r requirements-dev.txt
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
-      - name: ruff
-        run: ruff check app tests
+      - run: dotnet restore --locked-mode
+      - run: dotnet tool restore
 
-      # No database service on purpose - see tests/test_health.py.
-      - name: pytest
-        run: pytest -q
+      - name: format
+        run: dotnet format --verify-no-changes --no-restore
+
+      - name: build
+        run: dotnet build -c Release --no-restore
+
+      # No database on purpose - see tests/App.Tests/HealthTests.cs.
+      - name: test
+        run: dotnet test -c Release --no-build
+
+      # Fails when the data model changed without `dotnet ef migrations add`.
+      # Needs no database: it compares the model to the last migration's snapshot.
+      - name: model has a migration
+        run: dotnet ef migrations has-pending-model-changes --project src/App --no-build --configuration Release
+
+      - name: migrations are immutable and expand-only
+        if: github.event_name == 'pull_request'
+        run: scripts/check-migrations.sh "origin/${{ github.base_ref }}"
 
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 2s --health-retries 20
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +80,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # The health contract: healthy with NO database configured.
       - name: Smoke test the image
         run: |
           set -euo pipefail
@@ -67,3 +98,25 @@ jobs:
           docker logs app
           docker rm -f app
           exit 1
+
+      # The migration contract, exactly as the init container runs it. Twice:
+      # the second run must be a no-op, which is what every replica after the
+      # first will see.
+      - name: Migrations apply to a real Postgres
+        run: |
+          set -euo pipefail
+          pg=(--network host -e PGHOST=localhost -e PGUSER=postgres -e PGPASSWORD=ci -e PGDATABASE=postgres)
+          docker run --rm "${pg[@]}" app:ci migrate
+          docker run --rm "${pg[@]}" app:ci migrate | tee second.log
+          grep -q "schema is current" second.log
+
+      - name: App works against the migrated schema
+        run: |
+          set -euo pipefail
+          docker run -d --name app --network host \
+            -e PGHOST=localhost -e PGUSER=postgres -e PGPASSWORD=ci -e PGDATABASE=postgres app:ci
+          for i in $(seq 1 30); do curl -fsS http://localhost:8000/health > /dev/null && break; sleep 1; done
+          curl -fsS http://localhost:8000/ready
+          curl -fsS -X POST http://localhost:8000/items -H 'content-type: application/json' -d '{"title":"ci"}'
+          curl -fsS http://localhost:8000/items | grep -q '"title":"ci"'
+          docker rm -f app

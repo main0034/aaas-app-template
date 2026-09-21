@@ -1,11 +1,8 @@
 .git
 .github
+.config
 tests
-__pycache__
-*.pyc
-.pytest_cache
-.ruff_cache
-.venv
-requirements-dev.txt
+**/bin
+**/obj
 README.md
 AGENT.md

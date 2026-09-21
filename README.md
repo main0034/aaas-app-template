@@ -1,25 +1,26 @@
 # aaas-app-template
 
-Template repository for AaaS-generated applications. FastAPI + Postgres, deployable as-is.
+Template repository for AaaS-generated applications. ASP.NET Core minimal API on .NET 10 + Postgres via EF Core, deployable as-is.
 
 **Mark this repository as a template** in Settings → General → Template repository, so `gh repo create --template` works.
 
 ## What you get
 
 - `GET /health` — liveness/readiness, never touches the database
-- `GET /ready` — reports database connectivity
-- `GET /items`, `POST /items` — a trivial Postgres-backed resource, there to prove the connection works end to end
-- Multi-stage Dockerfile, non-root, health-checked
-- CI: ruff, pytest, docker build, container smoke test
+- `GET /ready` — reports database connectivity and the latest applied migration
+- `GET /items`, `POST /items` — a trivial Postgres-backed resource, there to prove the connection and the migration path work end to end
+- EF Core migrations, applied by `App migrate` in an init container before each revision starts
+- Chiseled, non-root runtime image
+- CI: format, build (warnings as errors), tests without a database, model-vs-migration check, immutable and expand-only migration checks, docker build, smoke test, migrations applied twice to a real Postgres
 - Release: image push to GHCR + automatic deployment PR
 
 ## Local development
 
+Needs the .NET 10 SDK (`global.json` pins the band).
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-pytest -q
-uvicorn app.main:app --reload
+dotnet restore && dotnet tool restore
+dotnet test
 ```
 
 No database needed for tests. To run against one:
@@ -27,12 +28,11 @@ No database needed for tests. To run against one:
 ```bash
 docker run -d --name pg -e POSTGRES_PASSWORD=dev -p 5432:5432 postgres:16
 export PGHOST=localhost PGDATABASE=postgres PGUSER=postgres PGPASSWORD=dev
-uvicorn app.main:app --reload
+dotnet run --project src/App -- migrate
+dotnet run --project src/App
 ```
 
-`PGPASSWORD` is a local-development fallback only. In Azure there is no
-password: the container's managed identity fetches an Entra token at connect
-time. See `app/db.py`.
+`PGPASSWORD` is a local-development fallback only. In Azure there is no password: the container's managed identity fetches an Entra token for each connection. See `src/App/Data/Database.cs`.
 
 ## Creating an app from this template
 
@@ -48,4 +48,4 @@ Then:
 
 ## Agents
 
-Read `AGENT.md` before writing code. It defines what you may not edit and the health-endpoint contract that deployment depends on.
+Read `AGENT.md` before writing code. It defines what you may not edit, the health-endpoint contract that deployment depends on, and the migration rules.
