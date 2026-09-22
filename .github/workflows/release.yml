@@ -24,6 +24,12 @@ concurrency:
 
 jobs:
   release:
+    # Never release the template repository itself. A repo created from this
+    # one has is_template false and releases normally; the template has no app
+    # credentials, so the run fails at the preflight - but if those secrets
+    # were ever added here, this workflow would build the TEMPLATE and open a
+    # PR retargeting whatever `.aaas/deployment` names.
+    if: github.event.repository.is_template != true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

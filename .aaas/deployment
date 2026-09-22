@@ -5,4 +5,7 @@
 # Explicit rather than derived from the repo name: naming magic is fine right
 # up until one app has two deployments, and then it is very confusing.
 
-deployment_path=deployments/dev/demo
+# UNSET ON PURPOSE. Set this when the application repository is created; the
+# template must not name a real deployment, or a release built here would
+# retarget someone else's. release.yml fails with a clear error while empty.
+deployment_path=
