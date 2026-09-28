@@ -26,6 +26,17 @@ jobs:
         with:
           fetch-depth: 0 # the migration check diffs against the base branch
 
+      # AGENT.md forbids faking the database in tests, and on 27 September an
+      # agent run did it anyway with 94 green tests (FINDINGS.md #22). A rule
+      # nobody checks gets broken, so this is a check, not a sentence (D-17).
+      - name: no fake database in tests
+        run: |
+          if grep -rnE 'EntityFrameworkCore\.(InMemory|Sqlite)|Microsoft\.Data\.Sqlite|UseInMemoryDatabase|UseSqlite' \
+               --include='*.cs' --include='*.csproj' --include='*.props' --include='*.targets' src tests Directory.*.props; then
+            echo "::error::The EF in-memory provider and SQLite are forbidden here (AGENT.md, 'Every new route gets a test'). They hide exactly the differences that break against Postgres. Remove the package and its PackageVersion, and test the logic without a database, as AGENT.md describes."
+            exit 1
+          fi
+
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
