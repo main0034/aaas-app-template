@@ -21,6 +21,19 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Endpoint tests run against this. Each test clones its own database from a
+    # migrated template (tests/App.Tests/Postgres), so they cannot see each
+    # other's rows.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 2s --health-retries 20
+    env:
+      TEST_POSTGRES: Host=localhost;Username=postgres;Password=ci
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,7 +46,7 @@ jobs:
         run: |
           if grep -rnE 'EntityFrameworkCore\.(InMemory|Sqlite)|Microsoft\.Data\.Sqlite|UseInMemoryDatabase|UseSqlite' \
                --include='*.cs' --include='*.csproj' --include='*.props' --include='*.targets' src tests Directory.*.props; then
-            echo "::error::The EF in-memory provider and SQLite are forbidden here (AGENT.md, 'Every new route gets a test'). They hide exactly the differences that break against Postgres. Remove the package and its PackageVersion, and test the logic without a database, as AGENT.md describes."
+            echo "::error::The EF in-memory provider and SQLite are forbidden here (AGENT.md, 'Every new route gets a test'). They hide exactly the differences that break against Postgres. Remove the package and its PackageVersion, and write an endpoint test against the real Postgres instead (EndpointTest, AGENT.md)."
             exit 1
           fi
 
@@ -52,9 +65,21 @@ jobs:
       - name: build
         run: dotnet build -c Release --no-restore
 
-      # No database on purpose - see tests/App.Tests/HealthTests.cs.
+      # Tests that need no database. HealthTests forces PGHOST empty, so the
+      # health contract is still proven without one.
       - name: test
-        run: dotnet test -c Release --no-build
+        run: dotnet test -c Release --no-build --filter-not-trait "Category=Endpoint"
+
+      # Routes against a real Postgres. A skipped endpoint test is a failure here
+      # (a missing database must not pass), and so is a run that found none - a
+      # broken filter or fixture would otherwise be a green build that tested
+      # nothing (FINDINGS.md #24).
+      - name: endpoint tests
+        run: >-
+          dotnet test -c Release --no-build
+          --filter-trait "Category=Endpoint"
+          --fail-skips on
+          --minimum-expected-tests 1
 
       # Fails when the data model changed without `dotnet ef migrations add`.
       # Needs no database: it compares the model to the last migration's snapshot.

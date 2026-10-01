@@ -1,12 +1,12 @@
-// Tests run in CI with no database available.
+// Tests that run with no database configured.
 //
-// That constraint is deliberate: it forces the app to start and report healthy
-// without Postgres, which is exactly the behaviour the container probes depend on.
-// If you find yourself wanting a database to make a test pass, the app has
-// probably grown a startup dependency it should not have.
+// They prove the health contract: the app starts and reports healthy without
+// Postgres, which is exactly what the container probes depend on. PGHOST is
+// forced empty so they behave the same everywhere.
 //
-// Migrations are the exception, and they are not tested here: CI applies them to
-// a real, throwaway Postgres in a separate job.
+// They are NOT how routes are tested. A route's behaviour is tested against a
+// real Postgres in a class deriving from EndpointTest - see ItemsEndpointTests
+// and AGENT.md, "Every new or changed route gets an endpoint test".
 
 using System.Net;
 using System.Net.Http.Json;

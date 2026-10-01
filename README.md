@@ -11,7 +11,7 @@ Template repository for AaaS-generated applications. ASP.NET Core minimal API on
 - `GET /items`, `POST /items` — a trivial Postgres-backed resource, there to prove the connection and the migration path work end to end
 - EF Core migrations, applied by `App migrate` in an init container before each revision starts
 - Chiseled, non-root runtime image
-- CI: format, build (warnings as errors), tests without a database, model-vs-migration check, immutable and expand-only migration checks, docker build, smoke test, migrations applied twice to a real Postgres
+- CI: format, build (warnings as errors), unit tests without a database, endpoint tests against a real Postgres (one cloned database per test), model-vs-migration check, immutable and expand-only migration checks, docker build, smoke test, migrations applied twice to a real Postgres
 - Release: image push to GHCR + automatic deployment PR
 
 ## Local development
@@ -23,10 +23,11 @@ dotnet restore && dotnet tool restore
 dotnet test
 ```
 
-No database needed for tests. To run against one:
+Without a database the endpoint tests are skipped. To run them, and the app, against one:
 
 ```bash
 docker run -d --name pg -e POSTGRES_PASSWORD=dev -p 5432:5432 postgres:16
+TEST_POSTGRES="Host=localhost;Username=postgres;Password=dev" dotnet test
 export PGHOST=localhost PGDATABASE=postgres PGUSER=postgres PGPASSWORD=dev
 dotnet run --project src/App -- migrate
 dotnet run --project src/App
