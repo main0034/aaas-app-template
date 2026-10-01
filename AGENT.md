@@ -85,7 +85,31 @@ This is not merely a nicety. Any stored credential ends up in Terraform state an
 
 **Request and response types are separate from entities.** Accept a `record` such as `ItemIn`; never bind a request body straight to an EF entity, or a client can set fields it should not.
 
-**Every new route gets a test**, and tests must pass with no database available. If a test needs Postgres, the design is probably wrong — the logic under test should be separable from the connection. Do not use the EF in-memory provider or SQLite to fake one; it hides exactly the differences that break in production. Migrations are tested against a real Postgres by CI, not by you.
+**Every new or changed route gets an endpoint test against Postgres.** A test that only proves a route fails without a database, or that builds its own `IQueryable` and checks it, proves nothing about the route: three agent-written features passed exactly such tests with a bug in them. An endpoint test derives from `EndpointTest`, seeds rows, calls the route through `Client`, and asserts **exactly which rows come back, in order** — including at least one seeded row that must *not* come back. Each test gets its own empty, fully migrated database, so seed everything the test needs and assert the whole result, not "contains".
+
+```csharp
+public sealed class ItemSearchTests(TemplateDatabase template) : EndpointTest(template)
+{
+    [Fact]
+    public async Task Search_matches_title_or_note_newest_first()
+    {
+        await SeedAsync(
+            new Item { Title = "Invoice March" },           // match on title
+            new Item { Title = "Call", Note = "invoice" },  // match on note
+            new Item { Title = "Groceries" });              // must not come back
+
+        var items = await Client.GetFromJsonAsync<List<Item>>("/items/search?q=invoice", Ct);
+
+        Assert.Equal(["Call", "Invoice March"], items!.Select(i => i.Title));
+    }
+}
+```
+
+Assert on the response body the client receives (titles, ids, status codes), not on what is in the database afterwards, unless the route's whole job is to write.
+
+Tests that need no database — validation (400s), pure logic, the health contract in `HealthTests.cs` — stay plain xUnit classes and do not derive from `EndpointTest`. Do not use the EF in-memory provider or SQLite to fake a database; CI rejects them, and they hide exactly the differences that break against Postgres.
+
+Endpoint tests read `TEST_POSTGRES`. Where it is unset — including your own environment — they are **skipped, not passed**: you cannot run them, so write them carefully and let CI run them. Do not change the fixture in `tests/App.Tests/Postgres/`, and do not try to start a Postgres yourself. CI runs them against a real Postgres and fails if any is skipped or if none ran at all.
 
 ## Before you open a PR
 
@@ -101,7 +125,7 @@ docker build -t app:local .
 
 Note that `dotnet ef` spells the build configuration `--configuration`: its `-c` means `--context`.
 
-All must pass. CI runs the same commands, plus the migration checks, a container smoke test, and your migrations applied twice to a throwaway Postgres — so a failure locally is a failure in CI. If `dotnet format` reports changes, run `dotnet format` and commit the result.
+All must pass (endpoint tests show as skipped without `TEST_POSTGRES`; that is expected). CI runs the same commands, runs the endpoint tests against a real Postgres, plus the migration checks, a container smoke test, and your migrations applied twice to a throwaway Postgres — so a failure locally is a failure in CI. If `dotnet format` reports changes, run `dotnet format` and commit the result.
 
 ## What happens after merge
 
