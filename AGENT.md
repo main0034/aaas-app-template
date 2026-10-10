@@ -11,11 +11,22 @@ The stack is fixed: **C# on .NET 10, ASP.NET Core minimal APIs, EF Core with Npg
 | `Dockerfile` | Defines the image contract the Terraform module depends on: port, non-root user, `/health`, the `migrate` argument. |
 | `.github/workflows/` | CI is a guardrail on your output. You must not be able to weaken it. |
 | `scripts/check-migrations.sh` | Same: it is the check on your migrations. |
+| `changes/`, `scripts/check-changes.sh`, `tests/App.Tests/Acceptance/` | The change record and its check. See "The change record" below. |
 | `Directory.Build.props`, `global.json`, `.editorconfig` | Compiler and style settings. Warnings are errors on purpose. |
 | `.aaas/deployment` | Set once when the repo is created. Changing it retargets deployments silently. |
 | `AGENT.md` | This file. |
 
 If one of these genuinely needs to change, say so and stop. A human decides.
+
+## The change record
+
+`changes/<id>/` holds one change to this application each: `brief.md`, the request it was built from, and acceptance tests written from that request by a spec-tester who never sees the code. The agent harness writes them, on the change's branch, before and after you work. You do not.
+
+- **Read them.** The briefs are the history of what was asked for and why; the tests are the behaviour each change was accepted on. Your change must keep every earlier change's tests green.
+- **Never edit them**, not even the current change's. If one of this change's acceptance tests fails, your code does not do what the request says: fix the code. If you are certain a test contradicts the request, quote the request, name the test and stop. If the request asks for behaviour an *earlier* change's test forbids, stop and say so: superseding accepted behaviour is a human decision.
+- CI checks this (`scripts/check-changes.sh`): a merged record never changes, only commits carrying the harness's `AaaS-Change` trailer may touch `changes/`, and a change record without acceptance tests is red.
+
+The acceptance tests compile into `tests/App.Tests` (it includes `changes/**/*.cs`) and run with the endpoint tests. They derive from `tests/App.Tests/Acceptance/AcceptanceBase.cs`, and they are black-box: HTTP in, JSON out.
 
 ## The health contract
 

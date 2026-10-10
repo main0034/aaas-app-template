@@ -14,6 +14,11 @@
     <ProjectReference Include="..\..\src\App\App.csproj" />
   </ItemGroup>
 
+  <!-- Acceptance tests live with the change they accept: changes/<id>/. -->
+  <ItemGroup>
+    <Compile Include="..\..\changes\**\*.cs" LinkBase="Changes" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
