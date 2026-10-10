@@ -39,9 +39,11 @@ public static class MigrationRunner
                 : ctx.Database.GetMigrations().ToList();
             // Counted before the lock is taken, so a replica that waits on another
             // may report migrations that are already applied by the time it runs.
-            Console.WriteLine(pending.Count == 0
-                ? "[migrate] schema is current"
-                : $"[migrate] {pending.Count} pending: {string.Join(", ", pending)}");
+            Console.WriteLine(
+                pending.Count == 0
+                    ? "[migrate] schema is current"
+                    : $"[migrate] {pending.Count} pending: {string.Join(", ", pending)}"
+            );
 
             await ctx.Database.MigrateAsync();
 

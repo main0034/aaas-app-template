@@ -35,8 +35,8 @@ public static class TestServer
             : null;
 
     public static string SkipReason =>
-        $"{Variable} is not set, so endpoint tests cannot reach a Postgres. CI sets it; " +
-        $"locally, point it at a Postgres you can create databases on.";
+        $"{Variable} is not set, so endpoint tests cannot reach a Postgres. CI sets it; "
+        + $"locally, point it at a Postgres you can create databases on.";
 
     public static async Task ExecuteAsync(string sql)
     {
@@ -80,7 +80,9 @@ public sealed class TemplateDatabase : IAsyncLifetime
         await using (var app = TestServer.AppFor(Name))
         await using (var scope = app.Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<App.Data.AppDbContext>().Database.MigrateAsync();
+            await scope
+                .ServiceProvider.GetRequiredService<App.Data.AppDbContext>()
+                .Database.MigrateAsync();
         }
 
         // A database with open connections cannot be used as a template.

@@ -28,8 +28,9 @@ public sealed class Database : IAsyncDisposable
     // Scope for Azure Database for PostgreSQL. Not the ARM scope - a token for
     // https://management.azure.com/.default is rejected by Postgres with a
     // confusing authentication failure.
-    private static readonly TokenRequestContext PostgresScope =
-        new(["https://ossrdbms-aad.database.windows.net/.default"]);
+    private static readonly TokenRequestContext PostgresScope = new([
+        "https://ossrdbms-aad.database.windows.net/.default",
+    ]);
 
     private readonly Lazy<NpgsqlDataSource> _dataSource;
     private TokenCredential? _credential;
@@ -61,9 +62,7 @@ public sealed class Database : IAsyncDisposable
     public bool UsesManagedIdentity => Password.Length == 0;
 
     public NpgsqlDataSource DataSource =>
-        IsConfigured
-            ? _dataSource.Value
-            : throw new DatabaseNotConfiguredException();
+        IsConfigured ? _dataSource.Value : throw new DatabaseNotConfiguredException();
 
     private NpgsqlDataSource Build()
     {
@@ -88,7 +87,8 @@ public sealed class Database : IAsyncDisposable
         {
             builder.UsePasswordProvider(
                 _ => Credential().GetToken(PostgresScope, default).Token,
-                async (_, ct) => (await Credential().GetTokenAsync(PostgresScope, ct)).Token);
+                async (_, ct) => (await Credential().GetTokenAsync(PostgresScope, ct)).Token
+            );
         }
         else
         {
@@ -102,10 +102,14 @@ public sealed class Database : IAsyncDisposable
     // Without it the credential looks for a system-assigned identity and fails.
     private TokenCredential Credential() =>
         _credential ??= new ManagedIdentityCredential(
-            ManagedIdentityId.FromUserAssignedClientId(ClientId
-                ?? throw new InvalidOperationException(
-                    "AZURE_CLIENT_ID is not set, and PGPASSWORD is empty. " +
-                    "Set PGPASSWORD for local development.")));
+            ManagedIdentityId.FromUserAssignedClientId(
+                ClientId
+                    ?? throw new InvalidOperationException(
+                        "AZURE_CLIENT_ID is not set, and PGPASSWORD is empty. "
+                            + "Set PGPASSWORD for local development."
+                    )
+            )
+        );
 
     public async ValueTask DisposeAsync()
     {

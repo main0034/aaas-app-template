@@ -33,21 +33,24 @@ var appName = builder.Configuration["APP_NAME"] ?? "app";
 // reports real failures itself.
 builder.Logging.AddFilter(
     "Microsoft.EntityFrameworkCore.Database.Command",
-    migrateOnly ? LogLevel.None : LogLevel.Warning);
+    migrateOnly ? LogLevel.None : LogLevel.Warning
+);
 
 builder.Services.AddSingleton<Database>();
-builder.Services.AddDbContext<AppDbContext>((sp, options) =>
-{
-    var db = sp.GetRequiredService<Database>();
-    if (db.IsConfigured)
+builder.Services.AddDbContext<AppDbContext>(
+    (sp, options) =>
     {
-        options.UseNpgsql(db.DataSource);
+        var db = sp.GetRequiredService<Database>();
+        if (db.IsConfigured)
+        {
+            options.UseNpgsql(db.DataSource);
+        }
+        else
+        {
+            options.UseNpgsql().AddInterceptors(new NotConfiguredInterceptor());
+        }
     }
-    else
-    {
-        options.UseNpgsql().AddInterceptors(new NotConfiguredInterceptor());
-    }
-});
+);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DatabaseUnavailableHandler>();
@@ -67,47 +70,61 @@ app.UseStatusCodePages();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = appName }));
 
 // Reports database connectivity. Not wired to the container probes.
-app.MapGet("/ready", async (Database db, IServiceProvider sp, CancellationToken ct) =>
-{
-    if (!db.IsConfigured)
+app.MapGet(
+    "/ready",
+    async (Database db, IServiceProvider sp, CancellationToken ct) =>
     {
-        return Results.Ok(new { database = "unconfigured" });
-    }
-
-    try
-    {
-        var ctx = sp.GetRequiredService<AppDbContext>();
-        var applied = await ctx.Database.GetAppliedMigrationsAsync(ct);
-        return Results.Ok(new
+        if (!db.IsConfigured)
         {
-            database = "ok",
-            auth = db.UsesManagedIdentity ? "managed-identity" : "password",
-            migration = applied.LastOrDefault(),
-        });
+            return Results.Ok(new { database = "unconfigured" });
+        }
+
+        try
+        {
+            var ctx = sp.GetRequiredService<AppDbContext>();
+            var applied = await ctx.Database.GetAppliedMigrationsAsync(ct);
+            return Results.Ok(
+                new
+                {
+                    database = "ok",
+                    auth = db.UsesManagedIdentity ? "managed-identity" : "password",
+                    migration = applied.LastOrDefault(),
+                }
+            );
+        }
+        catch (Exception ex) when (DatabaseUnavailableHandler.IsDatabaseFailure(ex))
+        {
+            return Results.Ok(
+                new { database = "unavailable", detail = ex.GetBaseException().Message }
+            );
+        }
     }
-    catch (Exception ex) when (DatabaseUnavailableHandler.IsDatabaseFailure(ex))
+);
+
+app.MapGet(
+    "/items",
+    async (AppDbContext ctx, CancellationToken ct) =>
+        await ctx.Items.AsNoTracking().OrderByDescending(i => i.Id).Take(100).ToListAsync(ct)
+);
+
+app.MapPost(
+    "/items",
+    async (ItemIn input, AppDbContext ctx, CancellationToken ct) =>
     {
-        return Results.Ok(new { database = "unavailable", detail = ex.GetBaseException().Message });
+        var item = new Item { Title = input.Title, Note = input.Note };
+        ctx.Items.Add(item);
+        await ctx.SaveChangesAsync(ct);
+        return Results.Created($"/items/{item.Id}", item);
     }
-});
-
-app.MapGet("/items", async (AppDbContext ctx, CancellationToken ct) =>
-    await ctx.Items.AsNoTracking().OrderByDescending(i => i.Id).Take(100).ToListAsync(ct));
-
-app.MapPost("/items", async (ItemIn input, AppDbContext ctx, CancellationToken ct) =>
-{
-    var item = new Item { Title = input.Title, Note = input.Note };
-    ctx.Items.Add(item);
-    await ctx.SaveChangesAsync(ct);
-    return Results.Created($"/items/{item.Id}", item);
-});
+);
 
 await app.RunAsync();
 return 0;
 
 public sealed record ItemIn(
     [property: Required, StringLength(200, MinimumLength = 1)] string Title,
-    [property: StringLength(2000)] string? Note);
+    [property: StringLength(2000)] string? Note
+);
 
 // Exposes Program to WebApplicationFactory in the tests.
 public partial class Program;

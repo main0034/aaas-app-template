@@ -9,7 +9,5 @@ namespace App.Data;
 public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args) =>
-        new(new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=design-time-only")
-            .Options);
+        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=design-time-only").Options);
 }

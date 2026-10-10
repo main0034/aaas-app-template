@@ -10,12 +10,19 @@ public sealed class ItemsEndpointTests(TemplateDatabase template) : EndpointTest
     [Fact]
     public async Task Post_then_get_returns_the_item_newest_first()
     {
+        // Arrange
         await SeedAsync(new Item { Title = "older" });
-        var created = await Client.PostAsJsonAsync("/items", new { title = "newer", note = "n" }, Ct);
-        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 
+        // Act
+        var created = await Client.PostAsJsonAsync(
+            "/items",
+            new { title = "newer", note = "n" },
+            Ct
+        );
         var items = await Client.GetFromJsonAsync<List<Item>>("/items", Ct);
 
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         Assert.Equal(["newer", "older"], items!.Select(i => i.Title));
     }
 }
