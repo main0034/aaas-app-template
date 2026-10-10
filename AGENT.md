@@ -73,7 +73,7 @@ dotnet ef migrations add <PascalCaseDescription> --project src/App
 Rules, each enforced by CI:
 
 - **Every model change has a migration.** `dotnet ef migrations has-pending-model-changes` fails the build otherwise.
-- **A merged migration is never edited, renamed or deleted.** It may already have run against a customer's database. If it was wrong, add a new migration that corrects it. `AppDbContextModelSnapshot.cs` is the only file in `Migrations/` that changes, and only via `dotnet ef`.
+- **An applied migration is never edited, renamed or deleted.** It has run against a customer's database; if it was wrong, add a new migration that corrects it. A migration that is merged but has *not* been applied - typically one whose deploy failed and rolled back - may be corrected in place. CI knows which is which from the estate's applied record and says so. `AppDbContextModelSnapshot.cs` is the only file in `Migrations/` that changes, and only via `dotnet ef`.
 - **Migrations are expand-only.** Add tables, add columns, add indexes. Do not drop or rename a table or column. Rollback means redeploying the previous image against the *current* schema, so the previous version of the code must still work after your migration. A new column must be nullable or have a default for the same reason.
 
 If a request genuinely needs something removed or renamed, stop and say so. That is a two-release change (stop using it, then remove it later) and a human decides when the second half happens.
