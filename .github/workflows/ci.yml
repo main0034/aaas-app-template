@@ -90,6 +90,14 @@ jobs:
         if: github.event_name == 'pull_request'
         run: scripts/check-migrations.sh "origin/${{ github.base_ref }}"
 
+      # changes/<id>/ is the request and the acceptance tests written from it by a
+      # spec-tester who never saw the code; the endpoint tests above ran them. Only
+      # the harness writes there, a merged record never changes, and a change
+      # without its acceptance tests is red (scripts/check-changes.sh).
+      - name: change records are complete and written by the harness
+        if: github.event_name == 'pull_request'
+        run: scripts/check-changes.sh "origin/${{ github.base_ref }}"
+
   build:
     runs-on: ubuntu-latest
     services:
