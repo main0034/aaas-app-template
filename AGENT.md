@@ -13,6 +13,7 @@ The stack is fixed: **C# on .NET 10, ASP.NET Core minimal APIs, EF Core with Npg
 | `scripts/check-migrations.sh` | Same: it is the check on your migrations. |
 | `scripts/check-test-layout.py`, `.csharpierignore` | The checks behind "Conventions" below. |
 | `changes/`, `scripts/check-changes.sh`, `tests/App.Tests/Acceptance/` | The change record and its check. See "The change record" below. |
+| `requests/` | Pending requests, written by the people who ask for changes. The harness moves one into `changes/` when its change starts. |
 | `Directory.Build.props`, `global.json`, `.editorconfig` | Compiler and style settings. Warnings are errors on purpose. |
 | `.aaas/deployment` | Set once when the repo is created. Changing it retargets deployments silently. |
 | `AGENT.md` | This file. |
@@ -20,6 +21,8 @@ The stack is fixed: **C# on .NET 10, ASP.NET Core minimal APIs, EF Core with Npg
 If one of these genuinely needs to change, say so and stop. A human decides.
 
 ## The change record
+
+A change starts as a request: `requests/<name>.md`, written by the requester from `requests/TEMPLATE.md` and committed to the default branch. Starting the change moves it into the record.
 
 `changes/<id>/` holds one change to this application each: `brief.md`, the request it was built from, and acceptance tests written from that request by a spec-tester who never sees the code. The agent harness writes them, on the change's branch, before and after you work. You do not.
 
