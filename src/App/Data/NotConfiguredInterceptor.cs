@@ -10,11 +10,15 @@ namespace App.Data;
 public sealed class NotConfiguredInterceptor : DbConnectionInterceptor
 {
     public override InterceptionResult ConnectionOpening(
-        DbConnection connection, ConnectionEventData eventData, InterceptionResult result) =>
-        throw new DatabaseNotConfiguredException();
+        DbConnection connection,
+        ConnectionEventData eventData,
+        InterceptionResult result
+    ) => throw new DatabaseNotConfiguredException();
 
     public override ValueTask<InterceptionResult> ConnectionOpeningAsync(
-        DbConnection connection, ConnectionEventData eventData, InterceptionResult result,
-        CancellationToken cancellationToken = default) =>
-        throw new DatabaseNotConfiguredException();
+        DbConnection connection,
+        ConnectionEventData eventData,
+        InterceptionResult result,
+        CancellationToken cancellationToken = default
+    ) => throw new DatabaseNotConfiguredException();
 }

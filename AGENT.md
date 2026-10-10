@@ -11,6 +11,7 @@ The stack is fixed: **C# on .NET 10, ASP.NET Core minimal APIs, EF Core with Npg
 | `Dockerfile` | Defines the image contract the Terraform module depends on: port, non-root user, `/health`, the `migrate` argument. |
 | `.github/workflows/` | CI is a guardrail on your output. You must not be able to weaken it. |
 | `scripts/check-migrations.sh` | Same: it is the check on your migrations. |
+| `scripts/check-test-layout.py`, `.csharpierignore` | The checks behind "Conventions" below. |
 | `changes/`, `scripts/check-changes.sh`, `tests/App.Tests/Acceptance/` | The change record and its check. See "The change record" below. |
 | `Directory.Build.props`, `global.json`, `.editorconfig` | Compiler and style settings. Warnings are errors on purpose. |
 | `.aaas/deployment` | Set once when the repo is created. Changing it retargets deployments silently. |
@@ -104,13 +105,17 @@ public sealed class ItemSearchTests(TemplateDatabase template) : EndpointTest(te
     [Fact]
     public async Task Search_matches_title_or_note_newest_first()
     {
+        // Arrange
         await SeedAsync(
-            new Item { Title = "Invoice March" },           // match on title
-            new Item { Title = "Call", Note = "invoice" },  // match on note
-            new Item { Title = "Groceries" });              // must not come back
+            new Item { Title = "Invoice March" }, // match on title
+            new Item { Title = "Call", Note = "invoice" }, // match on note
+            new Item { Title = "Groceries" } // must not come back
+        );
 
+        // Act
         var items = await Client.GetFromJsonAsync<List<Item>>("/items/search?q=invoice", Ct);
 
+        // Assert
         Assert.Equal(["Call", "Invoice March"], items!.Select(i => i.Title));
     }
 }
@@ -122,12 +127,43 @@ Tests that need no database — validation (400s), pure logic, the health contra
 
 Endpoint tests read `TEST_POSTGRES`. Where it is unset — including your own environment — they are **skipped, not passed**: you cannot run them, so write them carefully and let CI run them. Do not change the fixture in `tests/App.Tests/Postgres/`, and do not try to start a Postgres yourself. CI runs them against a real Postgres and fails if any is skipped or if none ran at all.
 
+## Conventions
+
+House rules for code in this repository. Each one has a check in CI, so a rule here is never only a request.
+
+**Formatting is CSharpier's.** Run `dotnet csharpier format .` before you commit; CI runs `dotnet csharpier check .` and fails on any difference. Do not hand-format around it, and do not use `dotnet format` for whitespace. Migrations and `changes/` are excluded (`.csharpierignore`): the first are generated, the second are frozen records.
+
+**Tests: Arrange, Act, Assert.** Every test (`[Fact]` or `[Theory]`) has a block body laid out in three parts, each starting with its comment:
+
+```csharp
+[Fact]
+public async Task Done_items_are_not_listed()
+{
+    // Arrange
+    await SeedAsync(new Item { Title = "keep" }, new Item { Title = "gone", IsDone = true });
+
+    // Act
+    var items = await Client.GetFromJsonAsync<List<Item>>("/items?open=true", Ct);
+
+    // Assert
+    Assert.Equal(["keep"], items!.Select(i => i.Title));
+}
+```
+
+- `// Arrange` is left out only when there is nothing to arrange.
+- When the call under test is itself the assertion (a helper that asserts the status code), use one `// Act & Assert`.
+- A note may follow a colon: `// Assert: 503, not a stack trace`.
+- No expression-bodied tests (`=> ...`): there is nowhere to put the comments.
+
+`scripts/check-test-layout.py` checks every test file a pull request adds or changes.
+
 ## Before you open a PR
 
 ```bash
 dotnet restore
 dotnet tool restore
-dotnet format --verify-no-changes
+dotnet csharpier format .
+python3 scripts/check-test-layout.py --files <the test files you changed>
 dotnet build -c Release
 dotnet test -c Release --no-build
 dotnet ef migrations has-pending-model-changes --project src/App --no-build --configuration Release
@@ -136,7 +172,7 @@ docker build -t app:local .
 
 Note that `dotnet ef` spells the build configuration `--configuration`: its `-c` means `--context`.
 
-All must pass (endpoint tests show as skipped without `TEST_POSTGRES`; that is expected). CI runs the same commands, runs the endpoint tests against a real Postgres, plus the migration checks, a container smoke test, and your migrations applied twice to a throwaway Postgres — so a failure locally is a failure in CI. If `dotnet format` reports changes, run `dotnet format` and commit the result.
+All must pass (endpoint tests show as skipped without `TEST_POSTGRES`; that is expected). CI runs the same commands, runs the endpoint tests against a real Postgres, plus the migration checks, a container smoke test, and your migrations applied twice to a throwaway Postgres — so a failure locally is a failure in CI. If `dotnet csharpier check .` reports differences, run `dotnet csharpier format .` and commit the result.
 
 ## What happens after merge
 

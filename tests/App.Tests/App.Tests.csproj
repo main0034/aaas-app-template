@@ -1,26 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
 
-  <PropertyGroup>
-    <IsPackable>false</IsPackable>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="xunit.v3" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
-    <PackageReference Include="xunit.v3" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\App\App.csproj" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\App\App.csproj" />
-  </ItemGroup>
+    <!-- Acceptance tests live with the change they accept: changes/<id>/. -->
+    <ItemGroup>
+        <Compile Include="..\..\changes\**\*.cs" LinkBase="Changes" />
+    </ItemGroup>
 
-  <!-- Acceptance tests live with the change they accept: changes/<id>/. -->
-  <ItemGroup>
-    <Compile Include="..\..\changes\**\*.cs" LinkBase="Changes" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Using Include="Xunit" />
-  </ItemGroup>
-
+    <ItemGroup>
+        <Using Include="Xunit" />
+    </ItemGroup>
 </Project>

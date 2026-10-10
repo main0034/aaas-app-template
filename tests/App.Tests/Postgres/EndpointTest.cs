@@ -23,7 +23,9 @@ public abstract class EndpointTest(TemplateDatabase template) : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         Assert.SkipWhen(TestServer.Settings is null, TestServer.SkipReason);
-        await TestServer.ExecuteAsync($"CREATE DATABASE \"{_database}\" TEMPLATE \"{template.Name}\"");
+        await TestServer.ExecuteAsync(
+            $"CREATE DATABASE \"{_database}\" TEMPLATE \"{template.Name}\""
+        );
         _app = TestServer.AppFor(_database);
         Client = _app.CreateClient();
     }

@@ -59,8 +59,14 @@ jobs:
       - run: dotnet restore --locked-mode
       - run: dotnet tool restore
 
-      - name: format
-        run: dotnet format --verify-no-changes --no-restore
+      # AGENT.md, "Conventions". Formatting is CSharpier's, not dotnet format's:
+      # two formatters disagree eventually, and then no commit can satisfy both.
+      - name: format (CSharpier)
+        run: dotnet csharpier check .
+
+      - name: tests are Arrange / Act / Assert
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/check-test-layout.py "origin/${{ github.base_ref }}"
 
       - name: build
         run: dotnet build -c Release --no-restore
