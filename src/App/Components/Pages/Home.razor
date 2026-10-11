@@ -53,7 +53,7 @@
     {
         result = await Api.PostAsync(
             "/items",
-            new { title = Input.Title, note = Input.Note }
+            new { title = Input.Title, note = string.IsNullOrWhiteSpace(Input.Note) ? null : Input.Note }
         );
         if (result.Succeeded)
         {

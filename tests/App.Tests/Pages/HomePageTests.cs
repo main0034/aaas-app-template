@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using App.Components.Pages;
 using App.Data;
 using App.Tests.Postgres;
@@ -47,5 +48,21 @@ public sealed class HomePageTests(TemplateDatabase template) : PageTest(template
         // Assert
         Assert.Contains("class=\"errors\"", html);
         Assert.Contains("Nothing here yet", html);
+    }
+
+    [Fact]
+    public async Task An_item_added_without_a_note_stores_no_note()
+    {
+        // Act: the note field is submitted empty, as a browser sends it
+        await SubmitFormAsync<Home>(
+            "/",
+            "new-item",
+            ("Input.Title", "No note"),
+            ("Input.Note", "")
+        );
+        var items = await Client.GetFromJsonAsync<List<Item>>("/items", Ct);
+
+        // Assert
+        Assert.Null(items!.Single().Note);
     }
 }
