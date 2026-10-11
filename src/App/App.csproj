@@ -4,6 +4,11 @@
         <AssemblyName>App</AssemblyName>
         <!-- Needed by AddValidation(): the validation source generator emits
          interceptors into this namespace. -->
+        <!-- Pages render statically with no JavaScript (AGENT.md, "Screens"), so
+         blazor.web.js is not shipped. Without this the SDK adds a package only when
+         .razor files are present, and the Dockerfile's restore - which sees the
+         project file but not the pages - disagrees with packages.lock.json. -->
+        <RequiresAspNetWebAssets>false</RequiresAspNetWebAssets>
         <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Validation.Generated</InterceptorsNamespaces>
     </PropertyGroup>
 
