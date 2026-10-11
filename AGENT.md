@@ -167,7 +167,7 @@ public sealed class HomePageTests(TemplateDatabase template) : PageTest(template
 }
 ```
 
-Forms: `<EditForm Model="Input" FormName="..." OnSubmit="..." method="post">` with a `[SupplyParameterFromForm] private XxxForm Input { get; set; } = null!;` set to `new()` in `OnInitializedAsync` when null. Form classes are page-local and hold strings as typed; the route decides what is valid. After a successful submit, `Navigation.NavigateTo(...)` to the page the user should land on.
+Forms: `<EditForm Model="Input" FormName="..." OnSubmit="..." method="post">` with a `[SupplyParameterFromForm] private XxxForm Input { get; set; } = null!;` set to `new()` in `OnInitializedAsync` when null. Form classes are page-local and hold strings as typed; the route decides what is valid. A field left empty is sent as `null`, not `""`: a browser submits an empty field as an empty string, and the route stores what it is given (an empty note stored as `""` once showed as a blank cell where the request said "—"). Page tests submit an empty optional field at least once. After a successful submit, `Navigation.NavigateTo(...)` to the page the user should land on.
 
 Keep screens plain: a heading, a list or a form inside `<div class="card">`, labels on every field, words a non-technical person uses ("Add item", not "POST"). The styles are in `AppShell.razor`; use its classes rather than adding your own.
 
