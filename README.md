@@ -9,9 +9,10 @@ Template repository for AaaS-generated applications. ASP.NET Core minimal API on
 - `GET /health` — liveness/readiness, never touches the database
 - `GET /ready` — reports database connectivity and the latest applied migration
 - `GET /items`, `POST /items` — a trivial Postgres-backed resource, there to prove the connection and the migration path work end to end
+- `/` — a screen for it: the item list and a form to add one. Blazor components rendered statically on the server, no JavaScript; pages call the routes through `AppApi` and never touch the database (AGENT.md, "Screens")
 - EF Core migrations, applied by `App migrate` in an init container before each revision starts
 - Chiseled, non-root runtime image
-- CI: format, build (warnings as errors), unit tests without a database, endpoint tests against a real Postgres (one cloned database per test), model-vs-migration check, immutable and expand-only migration checks, docker build, smoke test, migrations applied twice to a real Postgres
+- CI: pages checked (routes only, static, tested), format, build (warnings as errors), unit tests without a database, endpoint tests against a real Postgres (one cloned database per test), model-vs-migration check, immutable and expand-only migration checks, docker build, smoke test, migrations applied twice to a real Postgres
 - Release: image push to GHCR + automatic deployment PR
 
 ## Local development

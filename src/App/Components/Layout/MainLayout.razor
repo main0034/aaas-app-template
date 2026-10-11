@@ -1,0 +1,5 @@
+@inherits LayoutComponentBase
+@inject IConfiguration Configuration
+
+<header><a href="/">@(Configuration["APP_NAME"] ?? "app")</a></header>
+<main>@Body</main>

@@ -1,0 +1,15 @@
+@* Shows why a route refused a form, in the route's own words. *@
+@if (Result is { Succeeded: false })
+{
+    <ul class="errors">
+        @foreach (var message in Result.Messages)
+        {
+            <li>@message</li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter]
+    public ApiResult? Result { get; set; }
+}
