@@ -13,6 +13,7 @@
 
 using System.ComponentModel.DataAnnotations;
 using App;
+using App.Components;
 using App.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -56,6 +57,12 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DatabaseUnavailableHandler>();
 builder.Services.AddValidation();
 
+// Screens: Razor components rendered on the server, static only (AGENT.md,
+// "Screens"). A page reaches data through AppApi, which calls this app's own
+// routes on the loopback address, so the page gets the routes' tested behaviour.
+builder.Services.AddRazorComponents();
+builder.Services.AddHttpClient<AppApi>(c => c.BaseAddress = new Uri($"http://127.0.0.1:{port}"));
+
 var app = builder.Build();
 
 if (migrateOnly)
@@ -65,6 +72,26 @@ if (migrateOnly)
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseRouting();
+
+// A response no route matched says so, which is how AppApi tells "this route
+// answered 404" from "a page called a route that does not exist".
+app.Use(
+    async (context, next) =>
+    {
+        if (context.GetEndpoint() is null)
+        {
+            context.Response.Headers[AppApi.UnmatchedHeader] = "1";
+        }
+        await next(context);
+    }
+);
+
+// Forms carry no antiforgery check: the app has no sign-in, so there is no
+// session a forged request could ride on, and every route is already callable
+// directly. This changes when end users sign in.
+app.UseAntiforgery();
+app.MapRazorComponents<AppShell>().DisableAntiforgery();
 
 // Liveness and readiness. Must never touch the database.
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = appName }));

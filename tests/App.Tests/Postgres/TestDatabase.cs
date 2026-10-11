@@ -15,8 +15,10 @@
 // Without TEST_POSTGRES the endpoint tests are skipped with a message. CI runs
 // them with --fail-skips, so a missing database there is a failure, never a pass.
 
+using App.Components;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -52,15 +54,25 @@ public static class TestServer
     }
 
     // Starts the real app, configured the way the platform configures it, against
-    // one database.
-    public static WebApplicationFactory<Program> AppFor(string database) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
+    // one database. Pages call the app's own routes through AppApi; here that
+    // client goes to the in-memory test server instead of the loopback port.
+    public static WebApplicationFactory<Program> AppFor(string database)
+    {
+        WebApplicationFactory<Program>? app = null;
+        app = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
             b.UseSetting("PGHOST", Settings!.Host);
             b.UseSetting("PGUSER", Settings.Username);
             b.UseSetting("PGPASSWORD", Settings.Password);
             b.UseSetting("PGDATABASE", database);
+            b.ConfigureTestServices(services =>
+                services
+                    .AddHttpClient<AppApi>()
+                    .ConfigurePrimaryHttpMessageHandler(() => app!.Server.CreateHandler())
+            );
         });
+        return app;
+    }
 }
 
 // One migrated database per test run, used only as a template to clone from.

@@ -12,6 +12,7 @@ words; there is no need to know how the app is built.
 
 Delete these comments and any section that does not apply. A small change can be
 five lines. "Rules" and "Interface" matter most: they are what the tests check.
+"Screen" is how the person asking will find and use it.
 -->
 
 # <What the change is, in a few words>
@@ -49,6 +50,14 @@ the status codes (success, not found, invalid, conflict) and what comes back, wi
 small example. "In the same shape GET /items returns them" is enough when it is. -->
 
 - `GET /...` returns `200` with `...`. Unknown ...: `404`. Invalid ...: `400`.
+
+## Screen
+
+<!-- What the person using the app sees and does, in their words: which page, what
+is on it, what they fill in or press. "On an item's page, a field for the date and a
+button 'Set due date'." Leave this out only when nobody will use the change directly.
+The builder adds or changes the page with the change; the spec-testers test the
+routes above, not the page. -->
 
 ## Examples
 

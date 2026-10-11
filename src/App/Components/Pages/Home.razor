@@ -1,0 +1,69 @@
+@page "/"
+@inject AppApi Api
+@inject NavigationManager Navigation
+
+<PageTitle>Items</PageTitle>
+
+<h1>Items</h1>
+
+<div class="card">
+    <EditForm Model="Input" FormName="new-item" OnSubmit="AddAsync" method="post">
+        <label for="title">Title</label>
+        <InputText id="title" @bind-Value="Input.Title" />
+        <label for="note">Note</label>
+        <InputTextArea id="note" @bind-Value="Input.Note" rows="2" />
+        <Errors Result="result" />
+        <button type="submit">Add item</button>
+    </EditForm>
+</div>
+
+<div class="card">
+    @if (items.Count == 0)
+    {
+        <p class="muted">Nothing here yet.</p>
+    }
+    else
+    {
+        <ul class="rows">
+            @foreach (var item in items)
+            {
+                <li>
+                    <span>@item.Title</span>
+                    <span class="muted">@item.Note</span>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private ItemForm Input { get; set; } = null!;
+
+    private List<Item> items = [];
+    private ApiResult? result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        items = await Api.GetAsync<List<Item>>("/items");
+    }
+
+    private async Task AddAsync()
+    {
+        result = await Api.PostAsync(
+            "/items",
+            new { title = Input.Title, note = Input.Note }
+        );
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    public sealed class ItemForm
+    {
+        public string? Title { get; set; }
+        public string? Note { get; set; }
+    }
+}
