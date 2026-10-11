@@ -50,6 +50,12 @@ jobs:
             exit 1
           fi
 
+      # AGENT.md, "Screens". Pages reach data only through the app's own routes,
+      # render statically, never share a path with a route, and each has a page
+      # test that renders it against Postgres (run with the endpoint tests below).
+      - name: pages use routes, render statically and are tested
+        run: python3 scripts/check-pages.py
+
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
