@@ -17,6 +17,7 @@ The stack is fixed: **C# on .NET 10, ASP.NET Core minimal APIs, EF Core with Npg
 | `requests/` | Pending requests, written by the people who ask for changes. The harness moves one into `changes/` when its change starts. |
 | `Directory.Build.props`, `global.json`, `.editorconfig` | Compiler and style settings. Warnings are errors on purpose. |
 | `.aaas/deployment` | Set once when the repo is created. Changing it retargets deployments silently. |
+| `preview.yml`, `scripts/preview*.sh`, `.run/`, `src/App/Properties/launchSettings.json` | The operator's workbench: how a branch is previewed and run from Rider. See README "The workbench". |
 | `AGENT.md` | This file. |
 
 If one of these genuinely needs to change, say so and stop. A human decides.

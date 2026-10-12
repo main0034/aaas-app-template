@@ -2,3 +2,5 @@
 src/App/Migrations/
 # Frozen change records: formatted when written, never edited after (scripts/check-changes.sh).
 changes/
+# Rider run configurations (the workbench): Rider writes them, not CSharpier.
+.run/

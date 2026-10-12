@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "App (preview database)": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:8001",
+      "environmentVariables": {
+        "PORT": "8001",
+        "PGHOST": "localhost",
+        "PGDATABASE": "postgres",
+        "PGUSER": "postgres",
+        "PGPASSWORD": "preview",
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

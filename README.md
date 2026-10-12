@@ -36,6 +36,31 @@ dotnet run --project src/App
 
 `PGPASSWORD` is a local-development fallback only. In Azure there is no password: the container's managed identity fetches an Entra token for each connection. See `src/App/Data/Database.cs`.
 
+## The workbench
+
+How the operator tries a change on his own machine before it ships (roadmap step 5a).
+Needs Docker, and `aaas-agent` checked out next to this repository.
+
+```
+request ──► build ──► preview ──► (edit request ──► rebuild ──► preview)* ──► ship
+```
+
+In Rider, each step is a run configuration in the *Workbench* folder (`.run/`):
+
+| Step | Rider | Shell | What happens |
+|---|---|---|---|
+| Write the request | | | `requests/<name>.md` from `requests/TEMPLATE.md`, on `master`. No need to commit it |
+| Build | *1 Build* | `../aaas-agent/workbench.sh build [name]` | The request is committed on `change/<date>-<name>` and pushed. A builder writes the code there and the harness pushes it - no pull request, no spec-tester. The branch is then checked out here |
+| Preview | *2 Preview* | `scripts/preview.sh` | Builds the image from this checkout and runs it on <http://localhost:8080> with a local Postgres, `migrate` first. An empty app gets a few rows (`scripts/preview-seed.sh`, through the routes) |
+| Change your mind | | | Edit `requests/<name>.md` on the branch. No need to commit it |
+| Rebuild | *3 Rebuild* | `../aaas-agent/workbench.sh rebuild` | Commits and pushes the request. A fresh builder gets the new request, what changed in it, and the branch so far |
+| Ship | *4 Ship* | `../aaas-agent/workbench.sh ship` | Two spec-testers write hidden acceptance tests from the final request, on `master`, never seeing the branch. The harness moves the request into `changes/<id>/` with their tests, opens the pull request, runs up to two fix rounds, and merges it if D-26 allows |
+
+- **The request's git history is the record** of how the requirement moved; the pull request lists it.
+- **Ship refuses a request edited after the last build**: the spec-testers test the request, so the code must have been built from that one.
+- **The preview keeps its data** between runs, as a deployment does. If a rebuild changed a migration the preview had already applied, *Preview from an empty database* (`scripts/preview.sh fresh`).
+- **Debugging**: *Preview* first, then the `App (preview database)` launch profile runs `dotnet run` on <http://localhost:8001> against the preview's database, with breakpoints.
+
 ## Creating an app from this template
 
 ```bash
