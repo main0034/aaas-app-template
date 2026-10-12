@@ -1,0 +1,58 @@
+# The workbench preview (roadmap step 5a): this checkout's image, built exactly as
+# it deploys, next to a Postgres 16 on this machine. Start it with
+# `scripts/preview.sh` (or "Preview" in Rider), not with compose directly.
+#
+# - The image is the real one (Dockerfile, untouched). If the preview works, the
+#   image works; `dotnet run` is the debug configuration, not the preview.
+# - `migrate` runs first and must exit 0 before the app starts, as the Container
+#   Apps init container does.
+# - The app and migrate share the database container's network, so the database
+#   is `localhost` to them. The app turns TLS on for any other host (Database.cs:
+#   Azure requires it), and a local Postgres has none.
+# - The data survives a restart, so an iteration meets the data of the last one,
+#   as a deploy does. `scripts/preview.sh fresh` starts from an empty database.
+#
+# Only on 127.0.0.1: nothing on the network reaches it.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: preview
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 1s
+      retries: 30
+    volumes:
+      - db:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${PREVIEW_PORT:-8080}:8000"
+      - "127.0.0.1:${PREVIEW_DB_PORT:-5432}:5432"
+
+  migrate:
+    build: .
+    image: ${COMPOSE_PROJECT_NAME:-app}-image:preview
+    command: ["migrate"]
+    network_mode: service:db
+    environment: &database
+      PGHOST: localhost
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: preview
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    image: ${COMPOSE_PROJECT_NAME:-app}-image:preview
+    network_mode: service:db
+    environment:
+      <<: *database
+      PORT: "8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db:
